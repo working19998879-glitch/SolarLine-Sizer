@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>配管／線槽計算</title>
+<style>
+  :root{
+    --ink:#0B2545;
+    --ink-soft:#3A4F68;
+    --paper:#F3F5F4;
+    --panel:#FFFFFF;
+    --accent:#FFC857;
+    --accent-deep:#D89B2C;
+    --ok:#1F7A5C;
+    --ok-bg:#E4F3EC;
+    --warn:#C1443C;
+    --warn-bg:#FBE7E5;
+    --line:#DCE2E6;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  body{padding-bottom:48px;}
+  .wrap{max-width:520px;margin:0 auto;padding:0 14px;}
+
+  /* Header */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:var(--ink);
+    color:#fff;
+    padding:14px 0 12px;
+    box-shadow:0 2px 10px rgba(11,37,69,.25);
+  }
+  header .wrap{display:flex; flex-direction:column; gap:8px;}
+  .h-top{display:flex; align-items:baseline; justify-content:space-between;}
+  header h1{font-size:18px; margin:0; letter-spacing:.5px; font-weight:700;}
+  header .tag{font-size:11px; color:#9FB3C8; letter-spacing:1px; text-transform:uppercase;}
+  .total-pill{
+    display:flex; align-items:center; justify-content:space-between;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:10px;
+    padding:8px 12px;
+  }
+  .total-pill .lbl{font-size:12px; color:#B9C8D8;}
+  .total-pill .val{font-family:var(--mono); font-size:20px; font-weight:700; color:var(--accent);}
+
+  /* Sections */
+  section{margin-top:18px;}
+  .sec-head{
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:8px;
+  }
+  .badge{
+    width:22px; height:22px; border-radius:50%;
+    background:var(--ink); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; flex:none;
+  }
+  .sec-head h2{font-size:14.5px; margin:0; font-weight:700; color:var(--ink);}
+  .sec-sub{font-size:11.5px; color:var(--ink-soft); margin:2px 0 10px 30px; line-height:1.5;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px;
+  }
+
+  /* Wire rows */
+  .row{
+    display:grid;
+    grid-template-columns: 1fr 1fr 54px 24px;
+    gap:6px;
+    align-items:center;
+    padding:8px 0;
+    border-bottom:1px dashed var(--line);
+  }
+  .row:last-of-type{border-bottom:none;}
+  select, input[type=number]{
+    font-family:var(--sans);
+    font-size:14px;
+    padding:8px 6px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:#FFFDF4;
+    color:var(--ink);
+    width:100%;
+  }
+  select:focus, input:focus{outline:2px solid var(--accent-deep); outline-offset:1px;}
+  .qty-wrap input{text-align:center; font-family:var(--mono); font-weight:700;}
+  .rm-btn{
+    width:24px; height:24px; border-radius:50%;
+    border:none; background:var(--warn-bg); color:var(--warn);
+    font-size:14px; line-height:1; cursor:pointer; font-weight:700;
+  }
+  .row-sub{
+    grid-column:1 / -1;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:-2px;
+  }
+  .row-sub b{color:var(--ink); font-size:12px;}
+
+  .add-btn{
+    margin-top:10px;
+    width:100%;
+    padding:10px;
+    border-radius:9px;
+    border:1.5px dashed var(--accent-deep);
+    background:#FFF8E6;
+    color:var(--ink);
+    font-weight:700;
+    font-size:13.5px;
+    cursor:pointer;
+  }
+  .add-btn:active{transform:scale(.98);}
+
+  .total-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-top:12px; padding-top:10px; border-top:2px solid var(--ink);
+  }
+  .total-row .lbl{font-size:13px; font-weight:700;}
+  .total-row .val{font-family:var(--mono); font-size:19px; font-weight:800; color:var(--ink);}
+
+  /* Basis toggle */
+  .seg{
+    display:flex; background:#EDEFEF; border-radius:10px; padding:3px; gap:3px;
+  }
+  .seg button{
+    flex:1; border:none; background:transparent; padding:9px 0;
+    border-radius:8px; font-size:14px; font-weight:700; color:var(--ink-soft);
+    cursor:pointer; font-family:var(--sans);
+  }
+  .seg button.active{background:var(--ink); color:#fff;}
+  .note{font-size:11px; color:var(--ink-soft); margin-top:8px; line-height:1.5;}
+
+  /* Result cards */
+  .cards{display:flex; flex-direction:column; gap:8px;}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:12px; position:relative; overflow:hidden;
+  }
+  .card .top{display:flex; justify-content:space-between; align-items:center;}
+  .card .mat{font-size:12px; font-weight:700; color:var(--ink-soft); letter-spacing:.5px;}
+  .card .size{font-family:var(--mono); font-size:22px; font-weight:800; color:var(--ink);}
+  .card .size.bad{color:var(--warn); font-size:15px;}
+  .gauge{height:8px; border-radius:5px; background:#EEF1F2; margin-top:9px; overflow:hidden;}
+  .gauge > i{display:block; height:100%; border-radius:5px; background:var(--ok); transition:width .25s ease;}
+  .gauge.tight > i{background:var(--accent-deep);}
+  .gauge.over > i{background:var(--warn);}
+  .meta{display:flex; justify-content:space-between; margin-top:6px; font-size:11px; color:var(--ink-soft); font-family:var(--mono);}
+  .pill-ok{display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:20px; background:var(--ok-bg); color:var(--ok); font-weight:700;}
+  .pill-bad{display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:20px; background:var(--warn-bg); color:var(--warn); font-weight:700;}
+
+  /* Trough card bigger */
+  .trough-card .size{font-size:26px;}
+
+  .copy-btn{
+    margin-top:12px; width:100%; padding:11px; border-radius:9px; border:none;
+    background:var(--ink); color:#fff; font-weight:700; font-size:13.5px; cursor:pointer;
+  }
+  .copy-btn.copied{background:var(--ok);}
+
+  details{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:10px 12px; margin-top:10px;
+  }
+  summary{font-size:13px; font-weight:700; color:var(--ink); cursor:pointer;}
+  .ref-table{width:100%; border-collapse:collapse; margin-top:8px; font-size:11.5px; font-family:var(--mono);}
+  .ref-table th, .ref-table td{border-bottom:1px solid var(--line); padding:5px 4px; text-align:right;}
+  .ref-table th:first-child, .ref-table td:first-child{text-align:left; font-family:var(--sans);}
+  .ref-table th{color:var(--ink-soft); font-weight:700; font-family:var(--sans); font-size:11px;}
+  .ref-group{margin-top:10px; font-size:11.5px; font-weight:700; color:var(--ink);}
+
+  footer{margin-top:22px; text-align:center; font-size:10.5px; color:#8C9AA8; line-height:1.6; padding:0 20px;}
+
+  .module-divider{margin-top:32px; padding-top:20px; border-top:3px solid var(--ink);}
+  .module-title{font-size:16px; font-weight:800; color:var(--ink);}
+  .module-sub{font-size:11.5px; color:var(--ink-soft); margin-top:3px; line-height:1.5;}
+  .badge-alt{background:var(--accent-deep); color:#3A2600;}
+  .row2{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px dashed var(--line);}
+  .row2:last-child{border-bottom:none;}
+  .row2 label{font-size:13px; font-weight:700; color:var(--ink); flex:none;}
+  .row2 input, .row2 select{max-width:150px; text-align:right;}
+  .row2 select{text-align:left;}
+  .mono-val{font-family:var(--mono); font-weight:800; font-size:16px; color:var(--ink);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="h-top">
+      <div>
+        <h1>配管／線槽計算</h1>
+        <div class="tag">現場快算工具</div>
+      </div>
+    </div>
+    <div class="total-pill">
+      <span class="lbl">導線總截面積</span>
+      <span class="val" id="totalDisplay">0.0 mm²</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <div class="sec-head"><span class="badge">1</span><h2>導線輸入</h2></div>
+    <div class="sec-sub">每一電路一列，選種類、線徑，再輸入條數</div>
+    <div class="panel">
+      <div id="rows"></div>
+      <button class="add-btn" id="addRowBtn">＋ 新增一列導線</button>
+      <div class="total-row">
+        <span class="lbl">合計</span>
+        <span class="val" id="totalRowVal">0.0 mm²</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="badge">2</span><h2>配管填充率基準</h2></div>
+    <div class="panel">
+      <div class="seg" id="basisSeg">
+        <button data-v="20" id="basis20">20%</button>
+        <button data-v="40" id="basis40" class="active">40%</button>
+      </div>
+      <div class="note">請依適用法規（如屋內線路裝置規則）就導線條數選擇 20% 或 40%；本表僅供現場概算比對，正式設計仍請以承辦人員確認之法規基準為準。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="badge">3</span><h2>建議配管尺寸</h2></div>
+    <div class="sec-sub">依上方總截面積與填充率基準，自動抓取最小可用尺寸</div>
+    <div class="cards" id="conduitCards"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="badge">4</span><h2>建議線槽尺寸</h2></div>
+    <div class="sec-sub">固定採 20% 填充率</div>
+    <div class="cards" id="troughCards"></div>
+  </section>
+
+  <button class="copy-btn" id="copyBtn">複製計算結果</button>
+
+  <details>
+    <summary>附表：配管規格對照表</summary>
+    <div id="conduitRef"></div>
+  </details>
+
+  <details>
+    <summary>附表：線槽規格對照表</summary>
+    <table class="ref-table">
+      <thead><tr><th>尺寸(mm)</th><th>可用面積(20%)</th></tr></thead>
+      <tbody id="troughRefBody"></tbody>
+    </table>
+  </details>
+
+  <details>
+    <summary>附表：導線截面積對照表</summary>
+    <div id="wireRef"></div>
+  </details>
+
+  <div class="module-divider">
+    <div class="module-title">逆變器 AC 輸出｜NFB・XLPE・接地線</div>
+    <div class="module-sub">三段式：①逆變器→組合箱　②組合箱→主併接箱　③主併接箱→表後（可選）。每段各自依「流經該段的總電流」選 NFB，不會因為下游拆分迴路而縮水。</div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="badge badge-alt">0</span><h2>系統電壓（適用②③段幹線）</h2></div>
+    <div class="panel">
+      <div class="row2"><label>電壓／相別</label>
+        <select id="sysVoltInput">
+          <option value="1|110">單相2線 110V</option>
+          <option value="1|220">單相2線 220V</option>
+          <option value="1.732|220">三相3線 220V</option>
+          <option value="1.732|380" selected>三相4線 380V</option>
+        </select>
+      </div>
+      <div class="row2"><label>同一管內導線數</label>
+        <select id="bundleInput">
+          <option value="c3">3以下</option>
+          <option value="c4">4</option>
+          <option value="c56">5-6</option>
+          <option value="c79">7-9</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="badge badge-alt">1</span><h2>逆變器 → 組合箱（AC箱）</h2></div>
+    <div class="sec-sub">每一列＝一種逆變器規格。NFB／線徑只看「這一列自己的最大輸出電流×1.25」，跟同箱內有幾台逆變器無關。「台數」只用來加總容量供第②段使用。</div>
+    <div class="panel" id="invPanel"></div>
+    <button class="add-btn" id="addInvBtn">＋ 新增一種逆變器規格</button>
+    <div class="total-row"><span class="lbl">① 逆變器總容量（供②段預帶）</span><span class="val" id="invTotalOut">0.00 kWp</span></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="badge badge-alt">2</span><h2>組合箱 → 主併接箱／表後</h2></div>
+    <div class="sec-sub">每一列＝一個組合箱（AC箱）的涵蓋總容量。第一列預設帶入①的加總，可覆寫；若還有其他既設／並行組合箱要一起併入下一層，可新增列手動輸入。每列各自算出「該組合箱→上一層」的幹線 NFB／線徑。</div>
+    <div class="panel" id="comboPanel"></div>
+    <button class="add-btn" id="addComboBtn">＋ 新增一個組合箱</button>
+    <div class="total-row"><span class="lbl">② 組合箱總容量（供③段預帶）</span><span class="val" id="comboTotalOut">0.00 kWp</span></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="badge badge-alt">3</span><h2>主併接箱 → 表後（可選）</h2></div>
+    <div class="sec-sub">若專案有 ACMP／總併接箱這一層中繼，開啟後計算最終到電表的幹線 NFB／線徑；若沒有這層，關閉即可（第②段就是最終幹線）。</div>
+    <div class="panel">
+      <div class="row2"><label>啟用主併接層</label>
+        <input type="checkbox" id="mainEnableInput" style="width:20px;height:20px;">
+      </div>
+      <div class="row2"><label>本層涵蓋總容量 (kWp)</label><input type="number" id="mainKwpInput" value="0" min="0" step="0.001"></div>
+    </div>
+    <div id="mainResultWrap" style="display:none;">
+      <div class="cards" id="mainWireCard" style="margin-top:8px;"></div>
+      <div class="cards" id="mainNfbCard" style="margin-top:8px;"></div>
+      <div class="cards" id="mainGroundCard" style="margin-top:8px;"></div>
+    </div>
+  </section>
+
+  <button class="copy-btn" id="copyBtn2">複製計算結果</button>
+
+  <details>
+    <summary>附表：表二五-四 金屬導線管配線導線安培容量</summary>
+    <table class="ref-table">
+      <thead><tr><th>標稱截面積(mm²)</th><th>3以下</th><th>4</th><th>5-6</th><th>7-9</th></tr></thead>
+      <tbody id="ampRefBody"></tbody>
+    </table>
+  </details>
+
+  <details>
+    <summary>附表：NFB 額定電流對照表（NF／高啟斷系列，3P）</summary>
+    <table class="ref-table">
+      <thead><tr><th>系列</th><th>型式</th><th>AF</th><th>In(A)</th></tr></thead>
+      <tbody id="nfbRefBody"></tbody>
+    </table>
+  </details>
+
+  <details>
+    <summary>附表：接地線對照表</summary>
+    <table class="ref-table">
+      <thead><tr><th>過電流保護器上限(A)</th><th>接地線(mm²)</th></tr></thead>
+      <tbody id="groundRefBody"></tbody>
+    </table>
+  </details>
+
+  <footer>
+    數值依原始配管／線槽計算表與士林電機型錄整理。僅供現場概算參考，正式設計圖說仍請依相關法規與監造單位確認。
+  </footer>
+</div>
+
+<script>
+// ---------- Reference data (mirrors the 線路計算 workbook) ----------
+const WIRE_TABLE = {
+  "XLPE": {5.5:24, 8:35, 14:57, 22:72, 30:85, 38:107, 50:147, 60:170, 80:203, 100:238, 125:330, 150:380, 200:448, 250:531, 325:669},
+  "PVC":  {3.5:13, 5.5:20, 8:28, 14:45, 22:66, 30:85, 38:102, 50:125, 60:129, 80:167, 100:198, 125:246},
+  "PV Wire": {4:7.54, 6:29}
+};
+
+// EMT / ES-1 usable areas computed from manufacturer's 近似內徑 (inner diameter, mm):
+// area = round(PI * (ID/2)^2 * fillPct, 1). Source: user-supplied 電管規格圖 (E-series & ES-1).
+function pipeArea(id, pct){ return Math.round(Math.PI * Math.pow(id/2,2) * pct * 10) / 10; }
+const EMT_ID = {"E13":14,"E16":18,"E20":22,"E28":28,"E35":35,"E41":41,"E52":52,"E65":67,"E80":78,"E100":100,"E125":125,"E150":148,"E200":194};
+const ES1_ID = {"ES-1 80":83,"ES-1 100":106,"ES-1 125":131,"ES-1 150":154};
+
+const CONDUIT_TABLE = {
+  "PVC": [["1/2\"",30.5,61],["3/4\"",76,152],["1\"",123,246],["1-1/4\"",192,384],["1-1/2\"",251,502],["2\"",408,816],["2-1/2\"",705,1410],["3\"",946,1892],["4\"",1570,3140]],
+  "RSG": [["1/2\"",42,84],["3/4\"",75,150],["1\"",125.5,251],["1-1/4\"",213.5,427],["1-1/2\"",287,574],["2\"",459.5,919],["2-1/2\"",760,1520],["3\"",1063,2126],["4\"",1777,3554]],
+  "EMT": Object.entries(EMT_ID).map(([size,id]) => [size, pipeArea(id,0.2), pipeArea(id,0.4)]),
+  "ES-1": Object.entries(ES1_ID).map(([size,id]) => [size, pipeArea(id,0.2), pipeArea(id,0.4)])
+};
+
+const TROUGH_TABLE = [["50x50",500],["100x50",1000],["100x100",2000],["200x100",4000],["300x100",6000],["300x200",12000]];
+
+let basis = 40;
+let rows = [
+  {type:"XLPE", size:100, qty:4},
+  {type:"PVC", size:22, qty:1}
+];
+
+// ---------- Helpers ----------
+function areaOf(row){
+  const t = WIRE_TABLE[row.type];
+  if(!t) return null;
+  const a = t[row.size];
+  if(a === undefined) return null;
+  return a * (row.qty || 0);
+}
+
+function fmt(n, d=1){
+  if(n === null || n === undefined || isNaN(n)) return "-";
+  return n.toFixed(d);
+}
+
+function totalArea(){
+  return rows.reduce((sum, r) => {
+    const a = areaOf(r);
+    return sum + (a || 0);
+  }, 0);
+}
+
+// ---------- Render: wire rows ----------
+function renderRows(){
+  const wrap = document.getElementById("rows");
+  wrap.innerHTML = "";
+  rows.forEach((r, i) => {
+    const div = document.createElement("div");
+    div.className = "row";
+
+    const typeSel = document.createElement("select");
+    Object.keys(WIRE_TABLE).forEach(t => {
+      const o = document.createElement("option");
+      o.value = t; o.textContent = t;
+      if(t === r.type) o.selected = true;
+      typeSel.appendChild(o);
+    });
+    typeSel.addEventListener("change", e => {
+      r.type = e.target.value;
+      const keys = Object.keys(WIRE_TABLE[r.type]).map(Number);
+      r.size = keys[0];
+      renderRows(); renderAll();
+    });
+
+    const sizeSel = document.createElement("select");
+    Object.keys(WIRE_TABLE[r.type] || {}).forEach(sz => {
+      const o = document.createElement("option");
+      o.value = sz; o.textContent = sz + " mm²";
+      if(Number(sz) === Number(r.size)) o.selected = true;
+      sizeSel.appendChild(o);
+    });
+    sizeSel.addEventListener("change", e => {
+      r.size = Number(e.target.value);
+      renderAll();
+    });
+
+    const qtyWrap = document.createElement("div");
+    qtyWrap.className = "qty-wrap";
+    const qtyInput = document.createElement("input");
+    qtyInput.type = "number"; qtyInput.min = "0"; qtyInput.value = r.qty;
+    qtyInput.addEventListener("input", e => {
+      r.qty = Number(e.target.value) || 0;
+      renderAll();
+    });
+    qtyWrap.appendChild(qtyInput);
+
+    const rmBtn = document.createElement("button");
+    rmBtn.className = "rm-btn"; rmBtn.textContent = "×";
+    rmBtn.addEventListener("click", () => {
+      rows.splice(i,1);
+      renderRows(); renderAll();
+    });
+
+    const sub = document.createElement("div");
+    sub.className = "row-sub";
+    const a = areaOf(r);
+    sub.innerHTML = a === null
+      ? `<span style="color:#C1443C">查無此規格</span>`
+      : `單線 ${a} mm² × ${r.qty||0} 條 ＝ <b>${fmt(a*(r.qty||0))} mm²</b>`;
+
+    div.appendChild(typeSel);
+    div.appendChild(sizeSel);
+    div.appendChild(qtyWrap);
+    div.appendChild(rmBtn);
+    div.appendChild(sub);
+    wrap.appendChild(div);
+  });
+}
+
+document.getElementById("addRowBtn").addEventListener("click", () => {
+  rows.push({type:"XLPE", size:5.5, qty:1});
+  renderRows(); renderAll();
+});
+
+// ---------- Basis toggle ----------
+document.getElementById("basis20").addEventListener("click", () => { basis = 20; updateBasisUI(); renderAll(); });
+document.getElementById("basis40").addEventListener("click", () => { basis = 40; updateBasisUI(); renderAll(); });
+function updateBasisUI(){
+  document.getElementById("basis20").classList.toggle("active", basis === 20);
+  document.getElementById("basis40").classList.toggle("active", basis === 40);
+}
+
+// ---------- Conduit / trough suggestions ----------
+function suggestConduit(type){
+  const list = CONDUIT_TABLE[type];
+  const T = totalArea();
+  const idx = basis === 40 ? 2 : 1;
+  for(const entry of list){
+    if(entry[idx] >= T) return {size: entry[0], area: entry[idx], fits:true};
+  }
+  const last = list[list.length-1];
+  return {size: last[0], area: last[idx], fits:false};
+}
+
+function suggestTrough(){
+  const T = totalArea();
+  for(const entry of TROUGH_TABLE){
+    if(entry[1] >= T) return {size: entry[0], area: entry[1], fits:true};
+  }
+  const last = TROUGH_TABLE[TROUGH_TABLE.length-1];
+  return {size: last[0], area: last[1], fits:false};
+}
+
+function gaugeClass(pct){
+  if(pct > 100) return "over";
+  if(pct > 80) return "tight";
+  return "";
+}
+
+function renderConduitCards(){
+  const wrap = document.getElementById("conduitCards");
+  wrap.innerHTML = "";
+  const T = totalArea();
+  ["PVC","RSG","EMT","ES-1"].forEach(type => {
+    const s = suggestConduit(type);
+    const pct = s.area > 0 ? Math.min((T / s.area) * 100, 999) : 0;
+    const margin = s.area - T;
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="top">
+        <span class="mat">${type}</span>
+        ${s.fits ? '<span class="pill-ok">可用</span>' : '<span class="pill-bad">超出附表</span>'}
+      </div>
+      <div class="size ${s.fits ? '' : 'bad'}">${s.fits ? s.size : (s.size + '（不足）')}</div>
+      <div class="gauge ${gaugeClass(pct)}"><i style="width:${Math.min(pct,100)}%"></i></div>
+      <div class="meta">
+        <span>可用 ${fmt(s.area)} mm²</span>
+        <span>${s.fits ? '餘裕 ' + fmt(margin) : '差 ' + fmt(-margin)} mm²</span>
+      </div>
+    `;
+    wrap.appendChild(card);
+  });
+}
+
+function renderTroughCards(){
+  const wrap = document.getElementById("troughCards");
+  wrap.innerHTML = "";
+  const T = totalArea();
+  const s = suggestTrough();
+  const pct = s.area > 0 ? Math.min((T / s.area) * 100, 999) : 0;
+  const margin = s.area - T;
+  const card = document.createElement("div");
+  card.className = "card trough-card";
+  card.innerHTML = `
+    <div class="top">
+      <span class="mat">線槽</span>
+      ${s.fits ? '<span class="pill-ok">可用</span>' : '<span class="pill-bad">超出附表</span>'}
+    </div>
+    <div class="size ${s.fits ? '' : 'bad'}">${s.size}${s.fits ? '' : '（不足）'} mm</div>
+    <div class="gauge ${gaugeClass(pct)}"><i style="width:${Math.min(pct,100)}%"></i></div>
+    <div class="meta">
+      <span>可用 ${fmt(s.area)} mm²</span>
+      <span>${s.fits ? '餘裕 ' + fmt(margin) : '差 ' + fmt(-margin)} mm²</span>
+    </div>
+  `;
+  wrap.appendChild(card);
+}
+
+function renderTotal(){
+  const T = totalArea();
+  document.getElementById("totalDisplay").textContent = fmt(T) + " mm²";
+  document.getElementById("totalRowVal").textContent = fmt(T) + " mm²";
+}
+
+function renderAll(){
+  renderTotal();
+  renderConduitCards();
+  renderTroughCards();
+  renderRows(); // keep subtotal text in sync without losing focus issues on select changes
+}
+
+// ---------- Reference tables ----------
+function buildConduitRef(){
+  const wrap = document.getElementById("conduitRef");
+  wrap.innerHTML = "";
+  Object.keys(CONDUIT_TABLE).forEach(type => {
+    const h = document.createElement("div");
+    h.className = "ref-group";
+    h.textContent = type;
+    wrap.appendChild(h);
+    const table = document.createElement("table");
+    table.className = "ref-table";
+    table.innerHTML = `<thead><tr><th>尺寸</th><th>20%可用</th><th>40%可用</th></tr></thead>`;
+    const tbody = document.createElement("tbody");
+    CONDUIT_TABLE[type].forEach(e => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${e[0]}</td><td>${fmt(e[1])}</td><td>${fmt(e[2])}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  });
+}
+
+function buildTroughRef(){
+  const tbody = document.getElementById("troughRefBody");
+  tbody.innerHTML = "";
+  TROUGH_TABLE.forEach(e => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${e[0]}</td><td>${fmt(e[1])}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function buildWireRef(){
+  const wrap = document.getElementById("wireRef");
+  wrap.innerHTML = "";
+  Object.keys(WIRE_TABLE).forEach(type => {
+    const h = document.createElement("div");
+    h.className = "ref-group";
+    h.textContent = type;
+    wrap.appendChild(h);
+    const table = document.createElement("table");
+    table.className = "ref-table";
+    table.innerHTML = `<thead><tr><th>線徑(mm²)</th><th>截面積(mm²)</th></tr></thead>`;
+    const tbody = document.createElement("tbody");
+    Object.entries(WIRE_TABLE[type]).forEach(([sz, a]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${sz}</td><td>${fmt(a)}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  });
+}
+
+// ---------- Copy result ----------
+document.getElementById("copyBtn").addEventListener("click", () => {
+  const T = totalArea();
+  const pvc = suggestConduit("PVC");
+  const rsg = suggestConduit("RSG");
+  const emt = suggestConduit("EMT");
+  const es1 = suggestConduit("ES-1");
+  const tr = suggestTrough();
+  const lines = [
+    `【配管／線槽計算結果】`,
+    `導線總截面積：${fmt(T)} mm²（填充率基準 ${basis}%）`,
+    `建議 PVC 管：${pvc.size}${pvc.fits ? '' : '（超出附表，需分管）'}`,
+    `建議 RSG 管：${rsg.size}${rsg.fits ? '' : '（超出附表，需分管）'}`,
+    `建議 EMT 管：${emt.size}${emt.fits ? '' : '（超出附表，需分管）'}`,
+    `建議 ES-1 管：${es1.size}${es1.fits ? '' : '（超出附表，需分管）'}`,
+    `建議線槽：${tr.size} mm（20% 填充率）${tr.fits ? '' : '（超出附表，需分槽）'}`
+  ];
+  const text = lines.join("\n");
+  const btn = document.getElementById("copyBtn");
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = "已複製 ✓";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = "複製計算結果"; btn.classList.remove("copied"); }, 1600);
+  }).catch(() => {
+    prompt("請手動複製：", text);
+  });
+});
+
+// ============================================================
+// Module 2: 逆變器 AC 輸出 -> XLPE / NFB / 接地線
+// ============================================================
+
+// 表二五-四 金屬導線管配線之導線安培容量（絞線，90℃導線絕緣／35℃周圍溫度）
+const AMP_TABLE = [
+  {size:3.5,  c3:30,  c4:27,  c56:24,  c79:21},
+  {size:5.5,  c3:39,  c4:35,  c56:31,  c79:27},
+  {size:8,    c3:51,  c4:46,  c56:41,  c79:36},
+  {size:14,   c3:74,  c4:67,  c56:59,  c79:52},
+  {size:22,   c3:93,  c4:84,  c56:74,  c79:65},
+  {size:30,   c3:116, c4:104, c56:93,  c79:81},
+  {size:38,   c3:130, c4:117, c56:104, c79:91},
+  {size:50,   c3:155, c4:140, c56:124, c79:109},
+  {size:60,   c3:176, c4:158, c56:141, c79:123},
+  {size:80,   c3:208, c4:187, c56:166, c79:146},
+  {size:100,  c3:241, c4:217, c56:193, c79:169},
+  {size:125,  c3:276, c4:248, c56:221, c79:193},
+  {size:150,  c3:308, c4:277, c56:246, c79:null},
+  {size:200,  c3:358, c4:322, c56:286, c79:null},
+  {size:250,  c3:412, c4:371, c56:null,c79:null},
+  {size:325,  c3:469, c4:422, c56:null,c79:null},
+  {size:400,  c3:530, c4:null,c56:null,c79:null},
+  {size:500,  c3:579, c4:null,c56:null,c79:null},
+];
+
+// NFB 額定電流對照表（士林電機 NF系列／高啟斷系列，3P），已依 In 由小到大排序
+const NFB_TABLE = [
+["NF系列","NF30-SN",30,3],["NF系列","NF30-SN",30,5],["NF系列","NF30-SN",30,10],["NF系列","NF50-CN",50,10],
+["NF系列","NF100-CN",100,10],["NF系列","NF125-SN",125,10],["NF系列","NF30-SN",30,15],["NF系列","NF50-CN",50,15],
+["NF系列","NF100-CN",100,15],["NF系列","NF125-SN",125,15],["NF系列","NF30-SN",30,20],["NF系列","NF50-CN",50,20],
+["NF系列","NF100-CN",100,20],["NF系列","NF125-SN",125,20],["NF系列","NF30-SN",30,30],["NF系列","NF50-CN",50,30],
+["NF系列","NF100-CN",100,30],["NF系列","NF125-SN",125,30],["NF系列","NF50-CN",50,40],["NF系列","NF100-CN",100,40],
+["NF系列","NF125-SN",125,40],["高啟斷系列","NF250-HS",250,40],["NF系列","NF50-CN",50,50],["NF系列","NF100-CN",100,50],
+["NF系列","NF125-SN",125,50],["高啟斷系列","NF250-HS",250,50],["NF系列","NF100-CN",100,60],["NF系列","NF125-SN",125,60],
+["高啟斷系列","NF250-HS",250,60],["NF系列","NF100-CN",100,75],["NF系列","NF125-SN",125,75],["高啟斷系列","NF250-HS",250,75],
+["NF系列","NF100-CN",100,100],["NF系列","NF125-SN",125,100],["高啟斷系列","NF250-HS",250,100],["NF系列","NF125-SN",125,125],
+["NF系列","NF225-CN",225,125],["NF系列","NF250-CN",250,125],["NF系列","NF225-CN",225,150],["NF系列","NF250-CN",250,150],
+["高啟斷系列","NF250-HT",250,160],["NF系列","NF225-CN",225,175],["NF系列","NF250-CN",250,175],["NF系列","NF225-CN",225,200],
+["NF系列","NF250-CN",250,200],["NF系列","NF225-CN",225,225],["NF系列","NF250-CN",250,225],["NF系列","NF250-CN",250,250],
+["NF系列","NF400-CN",400,250],["NF系列","NF400-CN",400,300],["NF系列","NF400-CN",400,350],["NF系列","NF400-CN",400,400],
+["高啟斷系列","NF600-HC",600,500],["NF系列","NF630-CN",630,500],["高啟斷系列","NF800-HN",800,500],["高啟斷系列","NF600-HC",600,600],
+["NF系列","NF630-CN",630,600],["高啟斷系列","NF800-HN",800,600],["NF系列","NF630-CN",630,630],["高啟斷系列","NF800-HN",800,630],
+["NF系列","NF800-CN",800,700],["NF系列","NF800-CN",800,800],["高啟斷系列","NF1000-HS",1000,1000],["高啟斷系列","NF1200-HS",1200,1200],
+["高啟斷系列","NF1600-HS",1600,1400],["高啟斷系列","NF1600-HS",1600,1600]
+];
+
+// 接地線對照表（依過電流保護器額定電流）
+const GROUND_TABLE = [
+  [20,1.6],[30,2.0],[60,5.5],[100,8],[200,14],[420,22],[600,38],[800,50],
+  [1000,60],[1200,80],[1600,100],[2000,125],[2500,175],[3000,200],[4000,250],[5000,350],[6000,400]
+];
+
+function suggestWire(I125){
+  const col = document.getElementById("bundleInput").value; // c3/c4/c56/c79
+  for(const row of AMP_TABLE){
+    const amp = row[col];
+    if(amp !== null && amp >= I125) return {size: row.size, amp, fits:true};
+  }
+  const last = AMP_TABLE[AMP_TABLE.length-1];
+  return {size:last.size, amp:last.c3, fits:false};
+}
+
+function suggestNFB(I125){
+  for(const [series, model, af, ain] of NFB_TABLE){
+    if(ain >= I125) return {series, model, af, ain, fits:true};
+  }
+  const last = NFB_TABLE[NFB_TABLE.length-1];
+  return {series:last[0], model:last[1], af:last[2], ain:last[3], fits:false};
+}
+
+function suggestGround(nfbIn){
+  for(const [limit, ge] of GROUND_TABLE){
+    if(limit >= nfbIn) return {ge, fits:true};
+  }
+  const last = GROUND_TABLE[GROUND_TABLE.length-1];
+  return {ge:last[1], fits:false};
+}
+
+function cardHTML(label, w, n, g){
+  return `
+    <div class="card">
+      <div class="top"><span class="mat">${label}｜XLPE</span>${w.fits?'<span class="pill-ok">可用</span>':'<span class="pill-bad">超出附表</span>'}</div>
+      <div class="size ${w.fits?'':'bad'}">${w.size} mm²</div>
+      <div class="meta"><span>額定安培容量 ${w.amp} A</span><span>${w.fits ? '餘裕 '+fmt(w.amp - w._I125,1) : '差 '+fmt(w._I125 - w.amp,1)} A</span></div>
+    </div>
+    <div class="card">
+      <div class="top"><span class="mat">${label}｜NFB (3P)</span>${n.fits?'<span class="pill-ok">可用</span>':'<span class="pill-bad">超出型錄範圍</span>'}</div>
+      <div class="size ${n.fits?'':'bad'}">${n.ain} A</div>
+      <div class="meta"><span>AF${n.af} ／ ${n.model}</span><span>${n.series}</span></div>
+    </div>
+    <div class="card">
+      <div class="top"><span class="mat">${label}｜接地線</span>${g.fits?'<span class="pill-ok">可用</span>':'<span class="pill-bad">超出對照表</span>'}</div>
+      <div class="size">${g.ge} mm²</div>
+    </div>`;
+}
+
+function computeStage(I125){
+  const w = suggestWire(I125); w._I125 = I125;
+  const n = suggestNFB(I125);
+  const g = suggestGround(n.ain);
+  return {w, n, g, I125};
+}
+
+function sysVoltCoefV(){
+  const [coefStr, vStr] = document.getElementById("sysVoltInput").value.split("|");
+  return {coef: Number(coefStr), V: Number(vStr)};
+}
+
+// ---------- Stage 1: 逆變器 -> 組合箱 ----------
+let invRows = [
+  {name:"逆變器 A", pac:60, ampOverride:0, voltKey:"1.732|380", qty:1}
+];
+
+function renderInvPanel(){
+  const wrap = document.getElementById("invPanel");
+  wrap.innerHTML = "";
+  invRows.forEach((r, i) => {
+    const {coef, V} = (() => { const [c,v] = r.voltKey.split("|"); return {coef:Number(c), V:Number(v)}; })();
+    const IfromP = (r.pac*1000) / (coef*V);
+    const useOverride = r.ampOverride > 0;
+    const Iunit = useOverride ? r.ampOverride : IfromP;
+    const I125 = Iunit*1.25;
+    const stage = computeStage(I125);
+    const subtotalKwp = (r.pac||0) * (r.qty||0);
+
+    const box = document.createElement("div");
+    box.dataset.idx = i;
+    box.style.borderBottom = "1px dashed var(--line)";
+    box.style.paddingBottom = "10px";
+    box.style.marginBottom = "10px";
+    box.innerHTML = `
+      <div class="row2"><label>規格名稱</label><input type="text" data-f="name" value="${r.name}" style="max-width:180px;"></div>
+      <div class="row2"><label>單台額定功率 Pac(kW)</label><input type="number" data-f="pac" value="${r.pac}" min="0" step="0.01"></div>
+      <div class="row2"><label>電壓／相別</label>
+        <select data-f="voltKey">
+          <option value="1|110" ${r.voltKey==="1|110"?"selected":""}>單相2線 110V</option>
+          <option value="1|220" ${r.voltKey==="1|220"?"selected":""}>單相2線 220V</option>
+          <option value="1.732|220" ${r.voltKey==="1.732|220"?"selected":""}>三相3線 220V</option>
+          <option value="1.732|380" ${r.voltKey==="1.732|380"?"selected":""}>三相4線 380V</option>
+        </select>
+      </div>
+      <div class="row2"><label>台數</label><input type="number" data-f="qty" value="${r.qty}" min="1" step="1"></div>
+      <div class="row2"><label>單台額定輸出電流(A)－選填，型錄有寫就填，優先於kW反推</label><input type="number" data-f="ampOverride" value="${r.ampOverride||''}" min="0" step="0.1" placeholder="留空＝用kW反推"></div>
+      <div class="row2"><span class="lbl" style="font-size:12px;color:var(--ink-soft);">${useOverride?'採用型錄電流':'採用kW反推電流'} ${fmt(Iunit,2)} A ／ ×1.25 = ${fmt(I125,2)} A ／ 小計容量 ${fmt(subtotalKwp,3)} kWp</span></div>
+      <div class="cards">${cardHTML(r.name, stage.w, stage.n, stage.g)}</div>
+      ${invRows.length>1 ? `<button class="rm-btn" data-rm="${i}" style="width:auto;border-radius:8px;padding:4px 10px;margin-top:6px;">刪除此列</button>` : ""}
+    `;
+    wrap.appendChild(box);
+  });
+
+  const total = invRows.reduce((s,r) => s + (r.pac||0)*(r.qty||0), 0);
+  document.getElementById("invTotalOut").textContent = fmt(total,3) + " kWp";
+  return total;
+}
+
+// Re-rendering a panel on every keystroke replaces the input DOM nodes, which drops focus
+// mid-typing (only the first character would register). This helper remembers which field
+// was focused (by row index + field name) and cursor position, then restores it after the
+// panel's HTML is rebuilt, so typing multiple characters works normally.
+function withFocusPreserved(panelId, fn){
+  const panel = document.getElementById(panelId);
+  const active = document.activeElement;
+  let restore = null;
+  if(active && panel.contains(active)){
+    const idxEl = active.closest("[data-idx]");
+    const fieldName = active.getAttribute("data-f") || active.getAttribute("data-cf");
+    if(idxEl && fieldName){
+      restore = { idx: idxEl.dataset.idx, field: fieldName, selStart: active.selectionStart, selEnd: active.selectionEnd };
+    }
+  }
+  fn();
+  if(restore){
+    const el = panel.querySelector(`[data-idx="${restore.idx}"] [data-f="${restore.field}"], [data-idx="${restore.idx}"] [data-cf="${restore.field}"]`);
+    if(el){
+      el.focus();
+      if(typeof el.setSelectionRange === "function" && restore.selStart != null){
+        try { el.setSelectionRange(restore.selStart, restore.selEnd); } catch(err){}
+      }
+    }
+  }
+}
+
+// Delegated listeners attached once — survive re-renders since `wrap` itself never gets replaced.
+document.getElementById("invPanel").addEventListener("input", e => {
+  const f = e.target.getAttribute("data-f");
+  if(!f) return;
+  if(e.isComposing) return; // 中文等輸入法組字中，先不重繪，避免候選字被打斷
+  const i = Number(e.target.closest("[data-idx]").dataset.idx);
+  invRows[i][f] = (f==="pac"||f==="qty"||f==="ampOverride") ? Number(e.target.value)||0 : e.target.value;
+  withFocusPreserved("invPanel", () => { renderInvPanel(); renderComboPanel(true); });
+});
+// 組字結束（例如按下Enter/空白確認中文字）才真正寫入並重繪
+document.getElementById("invPanel").addEventListener("compositionend", e => {
+  const f = e.target.getAttribute("data-f");
+  if(!f) return;
+  const i = Number(e.target.closest("[data-idx]").dataset.idx);
+  invRows[i][f] = (f==="pac"||f==="qty"||f==="ampOverride") ? Number(e.target.value)||0 : e.target.value;
+  withFocusPreserved("invPanel", () => { renderInvPanel(); renderComboPanel(true); });
+});
+document.getElementById("invPanel").addEventListener("click", e => {
+  const rm = e.target.getAttribute("data-rm");
+  if(rm === null) return;
+  invRows.splice(Number(rm), 1);
+  renderInvPanel();
+  renderComboPanel(true);
+});
+
+document.getElementById("addInvBtn").addEventListener("click", () => {
+  invRows.push({name:"逆變器 " + String.fromCharCode(65+invRows.length), pac:60, ampOverride:0, voltKey:"1.732|380", qty:1});
+  renderInvPanel();
+  renderComboPanel(true);
+});
+
+// ---------- Stage 2: 組合箱 -> 主併接箱／表後 ----------
+let comboRows = [{kwp:0, label:"組合箱 1"}];
+
+function renderComboPanel(syncFirstFromInv){
+  const invTotal = invRows.reduce((s,r) => s + (r.pac||0)*(r.qty||0), 0);
+  if(syncFirstFromInv && comboRows.length) comboRows[0].kwp = invTotal;
+
+  const wrap = document.getElementById("comboPanel");
+  wrap.innerHTML = "";
+  const {coef, V} = sysVoltCoefV();
+
+  comboRows.forEach((r, i) => {
+    const I = (r.kwp*1000) / (coef*V);
+    const I125 = I*1.25;
+    const stage = computeStage(I125);
+
+    const box = document.createElement("div");
+    box.dataset.idx = i;
+    box.style.borderBottom = "1px dashed var(--line)";
+    box.style.paddingBottom = "10px";
+    box.style.marginBottom = "10px";
+    box.innerHTML = `
+      <div class="row2"><label>${r.label}${i===0?"（預設＝①加總，可覆寫）":""}</label><input type="number" data-cf="kwp" value="${fmt(r.kwp,3)}" min="0" step="0.001" style="max-width:140px;"></div>
+      <div class="row2"><span class="lbl" style="font-size:12px;color:var(--ink-soft);">幹線電流 ${fmt(I,2)} A ／ ×1.25 = ${fmt(I125,2)} A</span></div>
+      <div class="cards">${cardHTML(r.label, stage.w, stage.n, stage.g)}</div>
+      ${comboRows.length>1 ? `<button class="rm-btn" data-crm="${i}" style="width:auto;border-radius:8px;padding:4px 10px;margin-top:6px;">刪除此列</button>` : ""}
+    `;
+    wrap.appendChild(box);
+  });
+
+  const total = comboRows.reduce((s,r) => s + (r.kwp||0), 0);
+  document.getElementById("comboTotalOut").textContent = fmt(total,3) + " kWp";
+  return total;
+}
+
+document.getElementById("comboPanel").addEventListener("input", e => {
+  if(e.target.getAttribute("data-cf") === null) return;
+  const i = Number(e.target.closest("[data-idx]").dataset.idx);
+  comboRows[i].kwp = Number(e.target.value)||0;
+  withFocusPreserved("comboPanel", () => { renderComboPanel(false); syncMainDefault(); });
+});
+document.getElementById("comboPanel").addEventListener("click", e => {
+  const rm = e.target.getAttribute("data-crm");
+  if(rm === null) return;
+  comboRows.splice(Number(rm), 1);
+  renderComboPanel(false);
+  syncMainDefault();
+});
+
+document.getElementById("addComboBtn").addEventListener("click", () => {
+  comboRows.push({kwp:0, label:"組合箱 " + (comboRows.length+1)});
+  renderComboPanel(false);
+  syncMainDefault();
+});
+
+// ---------- Stage 3: 主併接箱 -> 表後（可選） ----------
+function syncMainDefault(){
+  const total = comboRows.reduce((s,r) => s + (r.kwp||0), 0);
+  document.getElementById("mainKwpInput").value = fmt(total,3);
+  renderMain();
+}
+
+function renderMain(){
+  const enabled = document.getElementById("mainEnableInput").checked;
+  document.getElementById("mainResultWrap").style.display = enabled ? "" : "none";
+  if(!enabled) return;
+  const kwp = Number(document.getElementById("mainKwpInput").value) || 0;
+  const {coef, V} = sysVoltCoefV();
+  const I = (kwp*1000) / (coef*V);
+  const I125 = I*1.25;
+  const stage = computeStage(I125);
+  document.getElementById("mainWireCard").innerHTML = cardHTML("主併接幹線", stage.w, stage.n, stage.g);
+  document.getElementById("mainNfbCard").innerHTML = "";
+  document.getElementById("mainGroundCard").innerHTML = "";
+}
+
+document.getElementById("sysVoltInput").addEventListener("change", () => { renderComboPanel(false); renderMain(); });
+document.getElementById("bundleInput").addEventListener("change", () => { renderInvPanel(); renderComboPanel(false); renderMain(); });
+document.getElementById("mainEnableInput").addEventListener("change", renderMain);
+document.getElementById("mainKwpInput").addEventListener("input", renderMain);
+
+function buildAmpRef(){
+  const tbody = document.getElementById("ampRefBody");
+  tbody.innerHTML = "";
+  AMP_TABLE.forEach(row => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${row.size}</td><td>${row.c3 ?? '-'}</td><td>${row.c4 ?? '-'}</td><td>${row.c56 ?? '-'}</td><td>${row.c79 ?? '-'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function buildNfbRef(){
+  const tbody = document.getElementById("nfbRefBody");
+  tbody.innerHTML = "";
+  NFB_TABLE.forEach(([series,model,af,ain]) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${series}</td><td>${model}</td><td>${af}</td><td>${ain}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function buildGroundRef(){
+  const tbody = document.getElementById("groundRefBody");
+  tbody.innerHTML = "";
+  GROUND_TABLE.forEach(([limit,ge]) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${limit}</td><td>${ge}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById("copyBtn2").addEventListener("click", () => {
+  const {coef, V} = sysVoltCoefV();
+  const lines = [`【逆變器 AC輸出計算結果（三段式）】`, ``, `① 逆變器 → 組合箱`];
+  invRows.forEach(r => {
+    const vk = r.voltKey.split("|"); const c = Number(vk[0]), v = Number(vk[1]);
+    const Iunit = (r.ampOverride>0) ? r.ampOverride : (r.pac*1000)/(c*v);
+    const I125 = Iunit*1.25;
+    const {w,n,g} = computeStage(I125);
+    lines.push(`　${r.name}：單台${r.pac}kW ×${r.qty}台，單台電流${fmt(Iunit,2)}A(×1.25=${fmt(I125,2)}A) → XLPE ${w.size}mm² ／ NFB ${n.ain}A(${n.model}) ／ 接地線 ${g.ge}mm²`);
+  });
+  const invTotal = invRows.reduce((s,r)=>s+(r.pac||0)*(r.qty||0),0);
+  lines.push(`　小計：${fmt(invTotal,3)} kWp`, ``, `② 組合箱 → 主併接箱／表後`);
+  comboRows.forEach(r => {
+    const I = (r.kwp*1000)/(coef*V), I125 = I*1.25;
+    const {w,n,g} = computeStage(I125);
+    lines.push(`　${r.label}：${fmt(r.kwp,3)}kWp，幹線電流${fmt(I,2)}A(×1.25=${fmt(I125,2)}A) → XLPE ${w.size}mm² ／ NFB ${n.ain}A(${n.model}) ／ 接地線 ${g.ge}mm²`);
+  });
+  const comboTotal = comboRows.reduce((s,r)=>s+(r.kwp||0),0);
+  lines.push(`　小計：${fmt(comboTotal,3)} kWp`);
+  if(document.getElementById("mainEnableInput").checked){
+    const kwp = Number(document.getElementById("mainKwpInput").value)||0;
+    const I = (kwp*1000)/(coef*V), I125 = I*1.25;
+    const {w,n,g} = computeStage(I125);
+    lines.push(``, `③ 主併接箱 → 表後`, `　${fmt(kwp,3)}kWp，幹線電流${fmt(I,2)}A(×1.25=${fmt(I125,2)}A) → XLPE ${w.size}mm² ／ NFB ${n.ain}A(${n.model}) ／ 接地線 ${g.ge}mm²`);
+  }
+  const text = lines.join("\n");
+  const btn = document.getElementById("copyBtn2");
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = "已複製 ✓";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = "複製計算結果"; btn.classList.remove("copied"); }, 1600);
+  }).catch(() => {
+    prompt("請手動複製：", text);
+  });
+});
+
+// ---------- Init ----------
+updateBasisUI();
+buildConduitRef();
+buildTroughRef();
+buildWireRef();
+renderAll();
+buildAmpRef();
+buildNfbRef();
+buildGroundRef();
+renderInvPanel();
+renderComboPanel(true);
+syncMainDefault();
+</script>
+</body>
+</html>
